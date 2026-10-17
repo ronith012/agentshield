@@ -22,6 +22,8 @@ from agentshield.models import (
 )
 from agentshield.policies import PolicyEngine, PolicyViolationError, validate_policy
 from agentshield.reporting import ReportGenerator
+from agentshield.config import Config
+from agentshield.history import TestHistory
 from agentshield.runner import TestRunner
 
 __all__ = [
@@ -41,4 +43,6 @@ __all__ = [
     "validate_policy",
     "TestRunner",
     "ReportGenerator",
+    "Config",
+    "TestHistory",
 ]

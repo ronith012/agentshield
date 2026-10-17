@@ -6,6 +6,8 @@ from pathlib import Path
 import typer
 import yaml
 
+from agentshield.config import Config
+from agentshield.history import TestHistory
 from agentshield.models import AgentTestSuiteResult as TestSuiteResult
 from agentshield.models import PolicyConfig
 from agentshield.reporting import ReportGenerator
@@ -97,7 +99,7 @@ def test(
     agent: str | None = typer.Option(None, "--agent", help="Path to agent implementation"),
     policy: str | None = typer.Option(None, "--policy", help="Path to policy configuration"),
     output: str | None = typer.Option(
-        "results.json", "--output", "-o", help="Path to save results JSON"
+        None, "--output", "-o", help="Path to save results JSON"
     ),
     category: str | None = typer.Option(
         None, "--category", "-c", help="Test category (reliability, security, or all)"
@@ -106,8 +108,17 @@ def test(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):
     """Run the test suite against an agent."""
-    # Load agent
-    agent_path = Path(agent) if agent else Path("./agent.py")
+    # Auto-discover configuration
+    config = Config.find()
+
+    # Load agent (from config or argument)
+    if agent:
+        agent_path = Path(agent)
+    elif config.agent_path:
+        agent_path = Path(config.agent_path)
+    else:
+        agent_path = Path("./agent.py")
+
     if not agent_path.exists():
         typer.echo(f"Error: Agent file not found: {agent_path}", err=True)
         sys.exit(1)
@@ -137,9 +148,16 @@ def test(
 
     agent = agent_class()
 
-    # Load policy
-    if policy and Path(policy).exists():
-        policy_config = load_policy_from_yaml(policy)
+    # Load policy (from config or argument)
+    if policy:
+        policy_path = Path(policy)
+    elif config.policy_path:
+        policy_path = Path(config.policy_path)
+    else:
+        policy_path = None
+
+    if policy_path and policy_path.exists():
+        policy_config = load_policy_from_yaml(str(policy_path))
     else:
         policy_config = PolicyConfig()  # Use default
 
@@ -197,11 +215,16 @@ def test(
                 typer.echo(f"    Error: {result.error_message}")
 
     # Save results
-    output_path = Path(output)
+    output_path = Path(output if output else config.default_output or "results.json")
     generator = ReportGenerator(policy_config)
     report = generator.generate_report(suite_result)
     generator.export_json(report, output_path)
     typer.echo(f"\nResults saved to: {output_path}")
+
+    # Save to history
+    history = TestHistory()
+    history.save_run(suite_result, agent.get_name())
+    typer.echo("Results saved to history")
 
     # Exit with error code if failures
     if suite_result.failed > 0 or suite_result.errors > 0:
@@ -299,6 +322,38 @@ def list_tests(
         typer.echo(f"  Description: {test.description}")
         if test.tags:
             typer.echo(f"  Tags: {', '.join(test.tags)}")
+
+
+@app.command()
+def history(
+    limit: int = typer.Option(10, "--limit", "-l", help="Number of recent runs to show"),
+    agent: str | None = typer.Option(None, "--agent", "-a", help="Filter by agent name"),
+    trends: bool = typer.Option(False, "--trends", "-t", help="Show trend analysis"),
+):
+    """Show test history and trends."""
+    hist = TestHistory()
+
+    if trends:
+        trends_data = hist.get_trends(agent_name=agent, runs=limit)
+        typer.echo("Test Trends")
+        typer.echo("=" * 50)
+        typer.echo(f"Total runs analyzed: {trends_data.get('total_runs', 0)}")
+        typer.echo(f"Average pass rate: {trends_data.get('average_pass_rate', 0)}%")
+        typer.echo(f"\nMost recent run:")
+        recent = trends_data.get("most_recent", {})
+        typer.echo(f"  Timestamp: {recent.get('timestamp', 'N/A')}")
+        typer.echo(f"  Passed: {recent.get('passed', 0)}")
+        typer.echo(f"  Failed: {recent.get('failed', 0)}")
+        typer.echo(f"  Errors: {recent.get('errors', 0)}")
+    else:
+        runs = hist.get_recent_runs(limit)
+        typer.echo(f"Recent Test Runs ({len(runs)}):")
+        typer.echo("=" * 50)
+
+        for run in runs:
+            typer.echo(f"\n[{run['timestamp']}] {run['agent_name']}")
+            typer.echo(f"  Total: {run['total_tests']}, Passed: {run['passed']}, Failed: {run['failed']}, Errors: {run['errors']}")
+            typer.echo(f"  Duration: {run['duration_seconds']:.2f}s")
 
 
 if __name__ == "__main__":
