@@ -1,0 +1,17 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include SECURITY.md
+include CONTRIBUTING.md
+include CODE_OF_CONDUCT.md
+recursive-include src *.py
+recursive-include examples *.py
+recursive-include docs *.md
+recursive-include .github *.md *.yml
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .git*
+global-exclude .pytest_cache
+global-exclude .ruff_cache
+global-exclude results.json
+global-exclude report.md
