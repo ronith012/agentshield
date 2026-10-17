@@ -4,7 +4,8 @@ An open-source framework for testing the reliability and security of AI agents b
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-passing-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-94%20passing-green.svg)](tests/)
+[![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-8A2BE2.svg)](https://github.com/astral-sh/ruff)
 
 ## Overview
 
@@ -53,7 +54,31 @@ pip install -e ".[dev]"
 pip install agentshield
 ```
 
-## Quick Start
+## Quick Start (5 Minutes)
+
+### Step 1: Install AgentShield
+
+```bash
+pip install agentshield
+```
+
+### Step 2: Run a Quick Test
+
+```bash
+# Initialize a new project
+agentshield init my-agent
+cd my-agent
+
+# Run tests against the default agent
+agentshield test --agent ./agent.py --verbose
+
+# Generate a report
+agentshield report
+```
+
+That's it! You've just run your first agent reliability and security tests.
+
+## Detailed Setup
 
 ### 1. Initialize a Project
 

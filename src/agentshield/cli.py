@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import typer
+import yaml
 
 from agentshield.models import AgentTestSuiteResult as TestSuiteResult
 from agentshield.models import PolicyConfig
@@ -13,6 +14,20 @@ from agentshield.testsuites.reliability import ReliabilityTestSuite
 from agentshield.testsuites.security import SecurityTestSuite
 
 app = typer.Typer(help="AgentShield: AI Agent Reliability and Security Testing Framework")
+
+
+def load_policy_from_yaml(path: str) -> PolicyConfig:
+    """Load policy configuration from a YAML file.
+
+    Args:
+        path: Path to the YAML file
+
+    Returns:
+        PolicyConfig object
+    """
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    return PolicyConfig(**data)
 
 
 @app.command()
@@ -123,7 +138,10 @@ def test(
     agent = agent_class()
 
     # Load policy
-    policy_config = PolicyConfig()  # Use default for now (YAML loading can be added later)
+    if policy and Path(policy).exists():
+        policy_config = load_policy_from_yaml(policy)
+    else:
+        policy_config = PolicyConfig()  # Use default
 
     # Get test cases
     if category == "reliability":
@@ -195,7 +213,7 @@ def report(
     input: str | None = typer.Option("results.json", "--input", "-i", help="Path to results JSON"),
     output: str | None = typer.Option("report.md", "--output", "-o", help="Path to save report"),
     format: str | None = typer.Option(
-        "markdown", "--format", "-f", help="Report format (markdown, json)"
+        "markdown", "--format", "-f", help="Report format (markdown, json, html)"
     ),
 ):
     """Generate a human-readable report from test results."""
@@ -217,6 +235,22 @@ def report(
         with open(output_path, "w") as f:
             json.dump(results_data, f, indent=2)
         typer.echo(f"JSON report saved to: {output_path}")
+    elif format == "html":
+        # Generate HTML report
+        from agentshield.reporting.html import HTMLReportGenerator
+
+        suite_result = TestSuiteResult(**results_data["suite_result"])
+        policy_config = PolicyConfig(**results_data["policy_config"])
+
+        generator = ReportGenerator(policy_config)
+        report = generator.generate_report(suite_result)
+        html_generator = HTMLReportGenerator(report)
+        html = html_generator.generate()
+
+        output_path = Path(output)
+        with open(output_path, "w") as f:
+            f.write(html)
+        typer.echo(f"HTML report saved to: {output_path}")
     else:
         # Generate markdown summary
         suite_result = TestSuiteResult(**results_data["suite_result"])
