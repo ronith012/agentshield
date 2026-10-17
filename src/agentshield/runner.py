@@ -59,11 +59,31 @@ class TestRunner:
     ) -> TestResult:
         """Run a single test case against an agent.
 
+        For nondeterministic agents, run multiple trials and aggregate results.
+
         Args:
             test_case: The test case to execute
             agent: The agent to test
             tools: Dictionary of available tools
             num_trials: Number of trials to run for nondeterministic agents (k-trial approach)
+
+        Returns:
+            TestResult containing the outcome of the test
+        """
+        if num_trials > 1:
+            return self._run_k_trial_test(test_case, agent, tools, num_trials)
+        else:
+            return self._run_single_test(test_case, agent, tools)
+
+    def _run_single_test(
+        self, test_case: TestCase, agent: AgentAdapter, tools: dict[str, Any]
+    ) -> TestResult:
+        """Run a single test case against an agent.
+
+        Args:
+            test_case: The test case to execute
+            agent: The agent to test
+            tools: Dictionary of available tools
 
         Returns:
             TestResult containing the outcome of the test
@@ -132,6 +152,84 @@ class TestRunner:
                 duration_seconds=duration,
             )
 
+    def _run_k_trial_test(
+        self, test_case: TestCase, agent: AgentAdapter, tools: dict[str, Any], k: int
+    ) -> TestResult:
+        """Run a test case multiple times and aggregate results (k-trial approach).
+
+        For nondeterministic agents, run the test k times and determine the final status
+        based on majority voting or consistency checks.
+
+        Args:
+            test_case: The test case to execute
+            agent: The agent to test
+            tools: Dictionary of available tools
+            k: Number of trials to run
+
+        Returns:
+            TestResult containing the aggregated outcome
+        """
+        results = []
+        total_duration = 0.0
+
+        for i in range(k):
+            result = self._run_single_test(test_case, agent, tools)
+            results.append(result)
+            total_duration += result.duration_seconds
+
+        # Aggregate results
+        passed_count = sum(1 for r in results if r.status == TestStatus.PASSED)
+        failed_count = sum(1 for r in results if r.status == TestStatus.FAILED)
+        error_count = sum(1 for r in results if r.status == TestStatus.ERROR)
+
+        # Determine final status
+        if passed_count == k:
+            # All trials passed
+            final_status = TestStatus.PASSED
+            final_trace = results[0].execution_trace
+            failure_reason = None
+            error_message = None
+        elif error_count == k:
+            # All trials had errors
+            final_status = TestStatus.ERROR
+            final_trace = results[0].execution_trace
+            failure_reason = None
+            error_message = f"All {k} trials encountered errors"
+        elif failed_count == k:
+            # All trials failed
+            final_status = TestStatus.FAILED
+            final_trace = results[0].execution_trace
+            failure_reason = f"All {k} trials failed"
+            error_message = None
+        elif passed_count >= k / 2:
+            # Majority passed
+            final_status = TestStatus.PASSED
+            final_trace = results[0].execution_trace
+            failure_reason = None
+            error_message = None
+        else:
+            # Inconsistent results
+            final_status = TestStatus.FAILED
+            final_trace = results[0].execution_trace
+            failure_reason = f"Inconsistent results across {k} trials: {passed_count} passed, {failed_count} failed, {error_count} errors"
+            error_message = None
+
+        return TestResult(
+            test_id=test_case.id,
+            status=final_status,
+            execution_trace=final_trace,
+            failure_reason=failure_reason,
+            error_message=error_message,
+            duration_seconds=total_duration / k,
+            evidence={
+                "k_trials": k,
+                "passed_count": passed_count,
+                "failed_count": failed_count,
+                "error_count": error_count,
+                "individual_results": [r.status.value for r in results],
+            },
+        )
+
     def _run_with_timeout(
         self,
         test_case: TestCase,
@@ -182,10 +280,13 @@ class TestRunner:
         Returns:
             True if all assertions pass, False otherwise
         """
+        passed_count = 0
         for assertion in test_case.assertions:
-            if not self._evaluate_single_assertion(assertion, trace):
-                return False
-        return True
+            if self._evaluate_single_assertion(assertion, trace):
+                passed_count += 1
+
+        # All assertions must pass for MVP
+        return passed_count == len(test_case.assertions)
 
     def _evaluate_single_assertion(self, assertion: str, trace: ExecutionTrace) -> bool:
         """Evaluate a single assertion.
@@ -229,6 +330,7 @@ class TestRunner:
         agent: AgentAdapter,
         tools: dict[str, Any],
         category_filter: TestCategory | None = None,
+        num_trials: int = 1,
     ) -> TestSuiteResult:
         """Run a suite of test cases against an agent.
 
@@ -237,6 +339,7 @@ class TestRunner:
             agent: The agent to test
             tools: Dictionary of available tools
             category_filter: Optional filter to run only specific category
+            num_trials: Number of trials for nondeterministic agents
 
         Returns:
             TestSuiteResult containing aggregated results
@@ -254,7 +357,7 @@ class TestRunner:
         skipped = 0
 
         for test_case in test_cases:
-            result = self.run_test(test_case, agent, tools)
+            result = self.run_test(test_case, agent, tools, num_trials)
             results.append(result)
 
             if result.status == TestStatus.PASSED:

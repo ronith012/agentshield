@@ -64,7 +64,7 @@ def test_runner_run_test_success():
         assertions=["contains test"],
     )
     
-    result = runner.run_test(test_case, agent, {})
+    result = runner.run_test(test_case, agent, tools={})
     
     assert result.test_id == "TEST-001"
     assert result.status == TestStatus.PASSED
@@ -89,7 +89,7 @@ def test_runner_run_test_failure():
         assertions=["contains nonexistent"],
     )
     
-    result = runner.run_test(test_case, agent, {})
+    result = runner.run_test(test_case, agent, tools={})
     
     assert result.test_id == "TEST-002"
     assert result.status == TestStatus.FAILED
@@ -113,7 +113,7 @@ def test_runner_run_test_error():
         assertions=["contains test"],
     )
     
-    result = runner.run_test(test_case, agent, {})
+    result = runner.run_test(test_case, agent, tools={})
     
     assert result.test_id == "TEST-003"
     assert result.status == TestStatus.ERROR
@@ -213,7 +213,7 @@ def test_runner_category_filter():
     ]
     
     # Filter for reliability only
-    suite_result = runner.run_test_suite(test_cases, agent, {}, category_filter=TestCategory.RELIABILITY)
+    suite_result = runner.run_test_suite(test_cases, agent, tools={}, category_filter=TestCategory.RELIABILITY)
     
     assert suite_result.total_tests == 1
     assert suite_result.passed == 1
@@ -235,7 +235,7 @@ def test_runner_evidence_collection():
         assertions=["contains test"],
     )
     
-    result = runner.run_test(test_case, agent, {})
+    result = runner.run_test(test_case, agent, tools={})
     
     assert "evidence" in result.model_dump()
     assert "tool_calls" in result.evidence
@@ -317,9 +317,36 @@ def test_runner_records_configuration():
         assertions=["contains test"],
     )
     
-    result = runner.run_test(test_case, agent, {})
-    
+    result = runner.run_test(test_case, agent, tools={})
+
     # Result should contain metadata from execution
     assert result.test_id == test_case.id
     assert result.execution_trace is not None
+
+
+def test_runner_k_trial_execution():
+    """Test k-trial execution for nondeterministic agents."""
+    policy = PolicyConfig()
+    runner = TestRunner(policy)
+    agent = SimpleAgent()
+
+    test_case = TestCase(
+        id="TEST-011",
+        name="K-Trial Test",
+        description="Test k-trial execution",
+        category=TestCategory.RELIABILITY,
+        input="test",
+        expected_behavior="Process",
+        assertions=["contains test"],
+    )
+
+    result = runner.run_test(test_case, agent, tools={}, num_trials=3)
+
+    assert result.test_id == "TEST-011"
+    assert result.status == TestStatus.PASSED
+    assert "k_trials" in result.evidence
+    assert result.evidence["k_trials"] == 3
+    assert result.evidence["passed_count"] == 3
+    assert result.evidence["failed_count"] == 0
+    assert result.evidence["error_count"] == 0
     assert result.duration_seconds >= 0

@@ -105,6 +105,7 @@ def test(
         None, "--category", "-c", help="Test category (reliability, security, or all)"
     ),
     test_id: str | None = typer.Option(None, "--test-id", "-t", help="Specific test ID to run"),
+    trials: int = typer.Option(1, "--trials", "-n", help="Number of trials for nondeterministic agents (k-trial)"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output"),
 ):
     """Run the test suite against an agent."""
@@ -188,9 +189,11 @@ def test(
         typer.echo(
             f"Policy: max_steps={policy_config.max_steps}, max_duration={policy_config.max_duration_seconds}s"
         )
+        if trials > 1:
+            typer.echo(f"Trials: {trials} (k-trial for nondeterministic agents)")
 
     runner = TestRunner(policy_config)
-    suite_result = runner.run_test_suite(test_cases, agent, tools)
+    suite_result = runner.run_test_suite(test_cases, agent, tools, num_trials=trials)
 
     # Print results
     typer.echo("\n" + "=" * 50)
