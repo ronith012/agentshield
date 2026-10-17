@@ -40,10 +40,10 @@ dev = [
 agentshield = "agentshield.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/agentshield"
-Documentation = "https://github.com/yourusername/agentshield#readme"
-Repository = "https://github.com/yourusername/agentshield"
-Issues = "https://github.com/yourusername/agentshield/issues"
+Homepage = "https://github.com/ronith012/agentshield"
+Documentation = "https://github.com/ronith012/agentshield#readme"
+Repository = "https://github.com/ronith012/agentshield"
+Issues = "https://github.com/ronith012/agentshield/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
