@@ -68,7 +68,6 @@ Thumbs.db
 # Project specific
 results.json
 report.md
-agentshield.config.yaml
 policy.yaml
 *.db
 .agentshield/
