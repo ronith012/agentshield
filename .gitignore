@@ -71,6 +71,7 @@ report.md
 agentshield.config.yaml
 policy.yaml
 *.db
+.agentshield/
 
 # Dev
 .pytest_cache/
